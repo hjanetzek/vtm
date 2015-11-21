@@ -91,6 +91,27 @@ public class MeshBucket extends RenderBucket {
 		//tess.addContour2D(geom.index, geom.points);
 	}
 
+	public void addIndexedMesh(GeometryBuffer geom) {
+		short start = (short) numVertices;
+
+		if (numVertices >= (1 << 16)) {
+			return;
+		}
+
+		for (int i = 0; i < geom.points.length / 2; ++i) {
+			vertexItems.add(geom.points[i * 2 + 0] * COORD_SCALE,
+							geom.points[i * 2 + 1] * COORD_SCALE);
+			numVertices++;
+		}
+		for (int i = 0; i < geom.index.length / 3; ++i) {
+			indiceItems.add(
+					start + geom.index[i * 3 + 0],
+					start + geom.index[i * 3 + 1],
+					start + geom.index[i * 3 + 2]);
+			numIndices += 3;
+		}
+	}
+
 	protected void prepare() {
 		if (tess == null)
 			return;
