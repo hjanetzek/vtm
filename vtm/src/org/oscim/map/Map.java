@@ -336,7 +336,7 @@ public abstract class Map implements TaskQueue {
 
 		MapPosition pos = mMapPosition;
 
-		//mAnimator.updateAnimation();
+		mAnimator.updateAnimation();
 		mMultiAnimator.updateAnimation();
 
 		boolean changed = mViewport.getMapPosition(pos);
@@ -350,7 +350,7 @@ public abstract class Map implements TaskQueue {
 
 		mClearMap = false;
 
-		//mAnimator.updateAnimation();
+		mAnimator.updateAnimation();
 		mMultiAnimator.updateAnimation();
 
 		mViewport.syncViewport();

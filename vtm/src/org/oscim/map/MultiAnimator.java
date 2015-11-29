@@ -1,5 +1,5 @@
 /*
- * Copyright 2013 Hannes Janetzek
+ * Copyright 2015 Vasily Lomakin
  *
  * This file is part of the OpenScienceMap project (http://www.opensciencemap.org).
  *
@@ -16,18 +16,11 @@
  */
 package org.oscim.map;
 
-import static org.oscim.core.MercatorProjection.latitudeToY;
-import static org.oscim.core.MercatorProjection.longitudeToX;
 import static org.oscim.utils.FastMath.clamp;
 
-import org.oscim.backend.CanvasAdapter;
-import org.oscim.core.BoundingBox;
-import org.oscim.core.GeoPoint;
 import org.oscim.core.MapPosition;
 import org.oscim.core.Point;
-import org.oscim.core.Tile;
 import org.oscim.renderer.MapRenderer;
-import org.oscim.utils.FastMath;
 import org.oscim.utils.ThreadUtils;
 import org.oscim.utils.async.Task;
 import org.slf4j.Logger;
@@ -59,7 +52,7 @@ public class MultiAnimator {
 	private long mTiltEnd = -1;
 
 	final private Object animLock = new Object();
-	private final Point mPivot = new Point();
+	private final Point mScalePivot = new Point();
 	private int mState = ANIM_NONE;
 
 	public MultiAnimator(Map map) {
@@ -69,43 +62,56 @@ public class MultiAnimator {
 	/**
 	 * Animate tilt
 	 *
-	 * @param speed in tilt per 1000ms
+	 * @param speed in degrees per second
 	 * @param tilt new tilt
 	 */
-	public void animateTilt(int speed, float tilt) {
+	public void animateTilt(float speed, float tilt) {
 		MapPosition pos = new MapPosition();
-		mMap.getMapPosition(pos);
-		double delta = Math.abs(tilt - pos.getTilt());
-		pos.setTilt(tilt);
-		animateTo((long)(1000 * delta / speed), pos);
+
+		synchronized (animLock) {
+			mMap.getMapPosition(pos);
+			double delta = Math.abs(tilt - pos.getTilt());
+			pos.setTilt(tilt);
+			animateTo((long) (1000 * delta / speed), pos);
+		}
 	}
 
 	/**
 	 * Animate zoom
 	 *
-	 * @param speed in zoom per 1000ms
-	 * @param zoom new zoom
+	 * @param speed in zoom factor units per second
+	 * @param zoomFactor zoom factor to multiply current zoom level
 	 */
-	public void animateZoom(int speed, double zoom) {
+	public void animateZoomFactor(float speed, double zoomFactor) {
+		if(zoomFactor <= 0)
+			return;
+
 		MapPosition pos = new MapPosition();
-		mMap.getMapPosition(pos);
-		double delta = Math.abs(zoom - pos.getScale());
-		pos.setScale(zoom);
-		animateTo((long)(1000 * delta / speed), pos);
+
+		synchronized (animLock) {
+			double delta = zoomFactor > 1 ? zoomFactor : 1 / zoomFactor;
+
+			mMap.getMapPosition(pos);
+			pos.setScale(pos.getScale() * zoomFactor);
+			animateTo((long) (1000 * delta / speed), pos);
+		}
 	}
 
 	/**
 	 * Animate bearing
 	 *
-	 * @param speed in bearing per 1000ms
+	 * @param speed in degrees per second
 	 * @param bearing new bearing
 	 */
-	public void animateBearing(int speed, float bearing) {
+	public void animateBearing(float speed, float bearing) {
 		MapPosition pos = new MapPosition();
-		mMap.getMapPosition(pos);
-		double delta = Math.abs(bearing - pos.getBearing());
-		pos.setBearing(bearing);
-		animateTo((long)(1000 * delta / speed), pos);
+
+		synchronized (animLock) {
+			mMap.getMapPosition(pos);
+			double delta = Math.abs(bearing - pos.getBearing());
+			pos.setBearing(bearing);
+			animateTo((long) (1000 * delta / speed), pos);
+		}
 	}
 
 	/**
@@ -165,7 +171,6 @@ public class MultiAnimator {
 
 	private void animStart(int state) {
 		synchronized (animLock) {
-			mCurPos.copy(mStartPos); // set start pos = cur pos
 			mState = mState | state;
 			long curTime = System.currentTimeMillis();
 
@@ -193,21 +198,18 @@ public class MultiAnimator {
 
 		synchronized (animLock) {
 			MapPosition curPos = new MapPosition();
-			curPos.copy(mCurPos);
-			boolean posHasChanged = false, scaleHasChanged = false, rotationHasChanged = false, tiltHasChanged = false;
-			if (v.getMapPosition(curPos)) {
-
-				if(curPos.getX() != mCurPos.getX() || curPos.getY() != mCurPos.getY())
-					posHasChanged = true;
-				if(curPos.getScale() != mCurPos.getScale())
-					scaleHasChanged = true;
-				if(curPos.getBearing() != mCurPos.getBearing())
-					rotationHasChanged = true;
-				if(curPos.getTilt() != mCurPos.getTilt())
-					tiltHasChanged = true;
-
-				mCurPos.copy(curPos);
+			v.getMapPosition(curPos);
+			if (curPos.getX() != mCurPos.getX() || curPos.getY() != mCurPos.getY())
+				mState &= ~ANIM_MOVE;
+			if (curPos.getScale() != mCurPos.getScale()) {
+				mState &= ~ANIM_SCALE;
+				mScalePivot.x = 0;
+				mScalePivot.y = 0;
 			}
+			if (curPos.getBearing() != mCurPos.getBearing())
+				mState &= ~ANIM_ROTATE;
+			if(curPos.getTilt() != mCurPos.getTilt())
+				mState &= ~ANIM_TILT;
 
 			long curTime = MapRenderer.frametime;
 
@@ -215,8 +217,7 @@ public class MultiAnimator {
 				return;
 
 			double scaleAdv = 1;
-
-			if ((mState & ANIM_SCALE) != 0 && !scaleHasChanged) {
+			if ((mState & ANIM_SCALE) != 0) {
 				long millisLeft = mScaleEnd - curTime;
 				float adv = clamp(1.0f - millisLeft / mScaleDuration, 0, 1);
 
@@ -224,12 +225,12 @@ public class MultiAnimator {
 
 				if (millisLeft <= 0) {
 					mState &= ~ANIM_SCALE;
-					mPivot.x = 0;
-					mPivot.y = 0;
+					mScalePivot.x = 0;
+					mScalePivot.y = 0;
 				}
 			}
 
-			if ((mState & ANIM_MOVE) != 0 && !posHasChanged) {
+			if ((mState & ANIM_MOVE) != 0) {
 				long millisLeft = mMoveEnd - curTime;
 				float adv = clamp(1.0f - millisLeft / mMoveDuration, 0, 1);
 
@@ -240,7 +241,7 @@ public class MultiAnimator {
 					mState &= ~ANIM_MOVE;
 			}
 
-			if ((mState & ANIM_ROTATE) != 0 && !rotationHasChanged) {
+			if ((mState & ANIM_ROTATE) != 0) {
 				long millisLeft = mRotateEnd - curTime;
 				float adv = clamp(1.0f - millisLeft / mRotateDuration, 0, 1);
 
@@ -250,7 +251,7 @@ public class MultiAnimator {
 					mState &= ~ANIM_ROTATE;
 			}
 
-			if ((mState & ANIM_TILT) != 0 && !tiltHasChanged) {
+			if ((mState & ANIM_TILT) != 0) {
 				long millisLeft = mTiltEnd - curTime;
 				float adv = clamp(1.0f - millisLeft / mTiltDuration, 0, 1);
 
@@ -287,15 +288,15 @@ public class MultiAnimator {
 		double newScale = mStartPos.scale + mDeltaPos.scale * Math.sqrt(adv);
 
 		v.scaleMap((float) (newScale / mCurPos.scale),
-		           (float) mPivot.x, (float) mPivot.y);
+		           (float) mScalePivot.x, (float) mScalePivot.y);
 
 		return newScale / (mStartPos.scale + mDeltaPos.scale);
 	}
 
 	public void cancel() {
 		mState = ANIM_NONE;
-		mPivot.x = 0;
-		mPivot.y = 0;
+		mScalePivot.x = 0;
+		mScalePivot.y = 0;
 		mMap.events.fire(Map.ANIM_END, mMap.mMapPosition);
 	}
 
