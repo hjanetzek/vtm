@@ -38,10 +38,10 @@ public class Viewport {
 
 	static final Logger log = LoggerFactory.getLogger(Viewport.class);
 
-	private final static int MAX_ZOOMLEVEL = 20;
+	private final static int MAX_ZOOMLEVEL = 30;
 	private final static int MIN_ZOOMLEVEL = 2;
 	private final static float MIN_TILT = 0;
-	private final static float MAX_TILT = 65;
+	private final static float MAX_TILT = 80;
 
 	protected double mMaxScale = (1 << MAX_ZOOMLEVEL);
 	protected double mMinScale = (1 << MIN_ZOOMLEVEL);
