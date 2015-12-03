@@ -8,6 +8,7 @@ import java.util.List;
 
 import org.oscim.backend.canvas.Color;
 import org.oscim.core.Box;
+import org.oscim.core.GeoPoint;
 import org.oscim.core.GeometryBuffer;
 import org.oscim.core.MapPosition;
 import org.oscim.core.Tile;
@@ -15,6 +16,7 @@ import org.oscim.layers.vector.geometries.Drawable;
 import org.oscim.layers.vector.geometries.LineDrawable;
 import org.oscim.layers.vector.geometries.PointDrawable;
 import org.oscim.layers.vector.geometries.Style;
+import org.oscim.layers.vector.geometries.TriangleStripDrawable;
 import org.oscim.map.Map;
 import org.oscim.renderer.bucket.LineBucket;
 import org.oscim.renderer.bucket.MeshBucket;
@@ -203,6 +205,8 @@ public class VectorLayer extends AbstractVectorLayer<Drawable> {
 			drawLine(task, level, geom, style);
 		} else if (d instanceof PointDrawable) {
 			drawPoint(task, level, geom, style);
+		} else if (d instanceof TriangleStripDrawable) {
+			drawStrip(task, level, (TriangleStripDrawable)d, style);
 		} else {
 			drawPolygon(task, level, geom, style);
 		}
@@ -286,6 +290,30 @@ public class VectorLayer extends AbstractVectorLayer<Drawable> {
 			mesh.addMesh(mGeom);
 			ll.addLine(mGeom);
 		}
+	}
+
+	protected void drawStrip(Task t, int level, TriangleStripDrawable strip, Style style) {
+		if (strip.getPoints().size() < 3)
+			return;
+
+		MeshBucket mesh = t.buckets.getMeshBucket(level);
+		if (mesh.area == null) {
+			mesh.area = new AreaStyle(Color.fade(style.fillColor,
+					style.fillAlpha));
+		}
+
+		GeometryBuffer geom = new GeometryBuffer(strip.getPoints().size(), (strip.getPoints().size() - 2) * 3);
+		geom.type = GeometryBuffer.GeometryType.TRIS;
+		for(GeoPoint point : strip.getPoints()) {
+			mConverter.addPoint(geom, point.getLongitude(), point.getLatitude());
+		}
+		for (int i = 0; i < strip.getPoints().size() - 2; ++i) {
+			geom.index[i * 3 + 0] = i + 0;
+			geom.index[i * 3 + 1] = i + 1;
+			geom.index[i * 3 + 2] = i + 2;
+		}
+
+		mesh.addIndexedMesh(geom);
 	}
 
 	protected void addCircle(GeometryBuffer g, MapPosition pos,
