@@ -24,6 +24,8 @@ import org.oscim.tiling.source.oscimap4.OSciMap4TileSource;
 import org.oscim.utils.FastMath;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.oscim.tiling.source.mvt.MapboxVectorTileSource;
+import org.oscim.theme.VtmThemes;
 
 import com.badlogic.gdx.backends.jglfw.JglfwApplication;
 import com.badlogic.gdx.backends.jglfw.JglfwApplicationConfiguration;
@@ -73,12 +75,17 @@ public class GdxMapApp extends GdxMap {
 
 	@Override
 	public void createLayers() {
-		TileSource tileSource = new OSciMap4TileSource();
+            //TileSource tileSource = new OSciMap4TileSource();
+
+                TileSource tileSource = new MapboxVectorTileSource("https://vector.mapzen.com/osm/all",
+		                                                      "/{Z}/{X}/{Y}.mvt");
+
+                mMap.setBaseMap(tileSource);
+                mMap.setTheme(VtmThemes.MAPZEN);
 
 		// TileSource tileSource = new MapFileTileSource();
 		// tileSource.setOption("file", "/home/jeff/germany.map");
-
-		initDefaultLayers(tileSource, false, true, true);
+		//initDefaultLayers(tileSource, false, true, true);
 
 		//mMap.getLayers().add(new BitmapTileLayer(mMap, new ImagicoLandcover(), 20));
 		//mMap.getLayers().add(new BitmapTileLayer(mMap, new OSMTileSource(), 20));

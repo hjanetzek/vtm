@@ -1,5 +1,4 @@
 /*
- * Copyright 2010, 2011, 2012 mapsforge.org
  * Copyright 2013 Hannes Janetzek
  *
  * This file is part of the OpenScienceMap project (http://www.opensciencemap.org).
@@ -15,31 +14,23 @@
  * You should have received a copy of the GNU Lesser General Public License along with
  * this program. If not, see <http://www.gnu.org/licenses/>.
  */
-package org.oscim.theme;
+package org.oscim.tiling.source.mvt;
 
-import java.io.InputStream;
+import org.oscim.tiling.ITileDataSource;
+import org.oscim.tiling.source.UrlTileDataSource;
+import org.oscim.tiling.source.UrlTileSource;
 
-import org.oscim.backend.AssetAdapter;
-
-/**
- * Enumeration of all internal rendering themes.
- */
-public enum VtmThemes implements ThemeFile {
-
-	DEFAULT("styles/default.xml"),
-	TRONRENDER("styles/tronrender.xml"),
-	NEWTRON("styles/newtron.xml"),
-	OSMARENDER("styles/osmarender.xml"),
-	MAPZEN("styles/mapzen.xml");
-
-	private final String mPath;
-
-	private VtmThemes(String path) {
-		mPath = path;
+public class MapboxVectorTileSource extends UrlTileSource {
+	public MapboxVectorTileSource(String url, String tilePath) {
+		super(url, tilePath);
+		//Map<String, String> opt = new HashMap<String, String>();
+		//opt.put("Accept-Encoding", "gzip");
+		//opt.put("User-Agent", "curl/7.47.1");
+		//setHttpRequestHeaders(opt);
 	}
 
 	@Override
-	public InputStream getRenderThemeAsStream() {
-		return AssetAdapter.readFileAsStream(mPath);
+	public ITileDataSource getDataSource() {
+		return new UrlTileDataSource(this, new TileDecoder(), getHttpEngine());
 	}
 }
