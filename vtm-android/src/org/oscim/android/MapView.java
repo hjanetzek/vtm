@@ -49,7 +49,7 @@ import javax.microedition.khronos.opengles.GL10;
 /**
  * The MapView,
  * <p/>
- * add it your App, have a map!
+ * Add it your app, have a map!
  * <p/>
  * Don't forget to call onPause / onResume!
  */
